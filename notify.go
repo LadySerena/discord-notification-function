@@ -1,4 +1,4 @@
-package notify
+package discord_notification_function
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 )
@@ -39,7 +40,11 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	sendToDiscord(bodyBytes)
+	discordErr := sendToDiscord(bodyBytes)
+	if discordErr != nil {
+		log.Println(discordErr.Error())
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	return
 }

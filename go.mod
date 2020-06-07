@@ -1,3 +1,1 @@
-module discord-notification-function/notify
-
-go 1.14
+module "discord-notification-function"
