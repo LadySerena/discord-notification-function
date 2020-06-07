@@ -9,7 +9,8 @@ steps:
       - '--runtime'
       - 'go113'
       - '--trigger-http'
-      - '--set-env-vars DISCORD_URL=$$DISCORD_URL'
+      - '--set-env-vars'
+      - 'DISCORD_URL=$$DISCORD_URL'
     secretEnv:
       - DISCORD_URL
 secrets:
