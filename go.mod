@@ -1,1 +1,1 @@
-module "discord-notification-function"
+module "github.com/LadySerena/discord-notification-function"
