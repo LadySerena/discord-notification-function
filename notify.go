@@ -42,6 +42,7 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 	}
 	discordErr := sendToDiscord(bodyBytes)
 	if discordErr != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(discordErr.Error())
 		return
 	}
