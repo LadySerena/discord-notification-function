@@ -1,8 +1,13 @@
 package notify
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 )
 
 type PubSubMessage struct {
@@ -21,10 +26,41 @@ type AttributesBlock struct {
 	Status  string `json:"status"`
 }
 
-func PostToDiscord(w http.ResponseWriter, r *http.Request) {
+type DiscordMessage struct {
+	Content string `json:"content"`
+}
+
+var discordURL = os.Getenv("DISCORD_URL")
+
+func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	bodyBytes, readErr := ioutil.ReadAll(r.Body)
 	if readErr != nil {
-		
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
+	sendToDiscord(bodyBytes)
+	w.WriteHeader(http.StatusOK)
+	return
 }
+
+func sendToDiscord(data []byte) error {
+	message := DiscordMessage{
+		Content: string(data),
+	}
+	messageContent, marshalErr := json.Marshal(message)
+	if marshalErr != nil {
+		return marshalErr
+	}
+	response, postErr := http.DefaultClient.Post(discordURL, "application/json", bytes.NewBuffer(messageContent))
+	if postErr != nil {
+		return postErr
+	}
+	if response.StatusCode != http.StatusNoContent {
+		errorMessage := fmt.Sprintf("api didn't return expected status, received %d, but expected %d", response.StatusCode, http.StatusNoContent)
+		return errors.New(errorMessage)
+	}
+	return nil
+}
+
+
