@@ -58,6 +58,7 @@ func sendToDiscord(data []byte) error {
 	if marshalErr != nil {
 		return marshalErr
 	}
+	log.Println(string(messageContent))
 	response, postErr := http.DefaultClient.Post(discordURL, "application/json", bytes.NewBuffer(messageContent))
 	if postErr != nil {
 		return postErr
