@@ -3,17 +3,20 @@ steps:
     args: ['build', '.']
   - name: 'gcr.io/cloud-builders/gcloud'
     args:
+      - 'kms'
+      - 'decrypt'
+      -  '--plaintext-file=./.env.yaml'
+      - '--ciphertext-file=./.env.yaml.enc'
+      - '--keyring=sops'
+      - '--key=sops-key'
+      - '--location=global'
+  - name: 'gcr.io/cloud-builders/gcloud'
+    args:
       - functions
       - deploy
       - GetBuildMessage
       - '--runtime'
       - 'go113'
       - '--trigger-http'
-      - '--set-env-vars'
-      - 'DISCORD_URL=$DISCORD_URL'
-    secretEnv:
-      - DISCORD_URL
-secrets:
-  - kmsKeyName: projects/minecraft-server-tiede/locations/global/keyRings/sops/cryptoKeys/sops-key
-    secretEnv:
-      DISCORD_URL: 'CiQArht5vfgPH8QMewu4G0bppTf/kL4FU5Szfgdva5kKuI1M9kUSpAEAe8QHobTvcGiCZNaYNFjbxKPPGqYeeIXDmIXhoHMZEjC/TzSIhHPzs8x5szLB5S8uMNBXbtPJPaV++e5YOucKgltUdtc5RFyfa3zzcgSG3wGA9jXeV4wN6a1AQlyBQoUwMlaqFD50SDFTnSTiFg3ljaznJdoLyIwST/KJX1vjocTAq6nrUMT08+lHV25pI+Hl3Ekab5Hmu8q0F3Rfpe1Hmp3kOA=='
+      - '--env-vars-file'
+      - '.env.yaml'
