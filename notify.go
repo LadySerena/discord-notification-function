@@ -2,6 +2,7 @@ package discord_notification_function
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +32,11 @@ type DiscordMessage struct {
 	Content string `json:"content"`
 }
 
+type BuildMessage struct {
+	Status string `json:"status"`
+	LogURL string `json:"logUrl"`
+}
+
 var discordURL = os.Getenv("DISCORD_URL")
 
 func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
@@ -40,7 +46,19 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	discordErr := sendToDiscord(bodyBytes)
+	pubMessage := PubSubMessage{}
+	unmarshalErr := json.Unmarshal(bodyBytes, &pubMessage)
+	if unmarshalErr != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Printf("could not unmarshal json due to: %s\n", unmarshalErr.Error())
+		return
+	}
+	discordOutput := generateDiscordMessage(pubMessage)
+	if discordOutput != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	discordErr := sendToDiscord(*discordOutput)
 	if discordErr != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(discordErr.Error())
@@ -50,11 +68,25 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 	return
 }
 
-func sendToDiscord(data []byte) error {
-	message := DiscordMessage{
-		Content: string(data),
+func generateDiscordMessage(pubMessage PubSubMessage) *DiscordMessage {
+	internalMessage, decodeErr := base64.StdEncoding.DecodeString(pubMessage.Message.Data)
+	if decodeErr != nil {
+		log.Printf("could not decode string due to: %s\n", decodeErr.Error())
+		return nil
 	}
-	messageContent, marshalErr := json.Marshal(message)
+	buildData := BuildMessage{}
+	unmarshalErr := json.Unmarshal([]byte(internalMessage), &buildData)
+	if unmarshalErr != nil {
+		log.Printf("could not unmarshal json due to: %s\n", unmarshalErr.Error())
+		return nil
+	}
+	msg := fmt.Sprintf("build status is: %s, view logs at: %s", buildData.Status, buildData.LogURL)
+	return &DiscordMessage{Content: msg}
+}
+
+func sendToDiscord(data DiscordMessage) error {
+
+	messageContent, marshalErr := json.Marshal(data)
 	if marshalErr != nil {
 		return marshalErr
 	}
