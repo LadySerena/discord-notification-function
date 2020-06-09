@@ -54,12 +54,12 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	discordOutput := generateDiscordMessage(pubMessage)
-	if discordOutput != nil {
+	if discordOutput == nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	discordErr := sendToDiscord(*discordOutput)
-	if discordErr == nil {
+	if discordErr != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		log.Println(discordErr.Error())
 		return
