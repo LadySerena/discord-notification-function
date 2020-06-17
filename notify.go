@@ -35,9 +35,27 @@ type DiscordMessage struct {
 type BuildMessage struct {
 	Status string `json:"status"`
 	LogURL string `json:"logUrl"`
+	Source BuildSource `json:"source"`
+}
+
+type BuildSource struct {
+	RepoSource RepoSource `json:"repoSource"`
+}
+
+type RepoSource struct {
+	ProjectID string `json:"projectId"`
+	RepoName string `json:"repoName"`
+	BranchName string `json:"branchName"`
 }
 
 var discordURL = os.Getenv("DISCORD_URL")
+
+var filterError = errors.New("filtering out WORKING or QUEUED")
+
+var filterSet = map[string]bool{
+	"WORKING": true,
+	"QUEUED" : true,
+}
 
 func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
@@ -53,8 +71,12 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 		log.Printf("could not unmarshal json due to: %s\n", unmarshalErr.Error())
 		return
 	}
-	discordOutput := generateDiscordMessage(pubMessage)
-	if discordOutput == nil {
+	discordOutput, generateErr := generateDiscordMessage(pubMessage)
+	if generateErr != nil {
+		if generateErr == filterError {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -64,24 +86,29 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 		log.Println(discordErr.Error())
 		return
 	}
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusAccepted)
 	return
 }
 
-func generateDiscordMessage(pubMessage PubSubMessage) *DiscordMessage {
+func generateDiscordMessage(pubMessage PubSubMessage) (*DiscordMessage, error) {
 	internalMessage, decodeErr := base64.StdEncoding.DecodeString(pubMessage.Message.Data)
 	if decodeErr != nil {
 		log.Printf("could not decode string due to: %s\n", decodeErr.Error())
-		return nil
+		return nil, decodeErr
 	}
 	buildData := BuildMessage{}
 	unmarshalErr := json.Unmarshal([]byte(internalMessage), &buildData)
 	if unmarshalErr != nil {
 		log.Printf("could not unmarshal json due to: %s\n", unmarshalErr.Error())
-		return nil
+		return nil, unmarshalErr
 	}
-	msg := fmt.Sprintf("build status is: %s, view logs at: %s", buildData.Status, buildData.LogURL)
-	return &DiscordMessage{Content: msg}
+	//if the status is in our set we return an error to ignore the message
+	if _, filterOut := filterSet[buildData.Status]; filterOut {
+		return nil, filterError
+	}
+	msg := fmt.Sprintf("build status is: %s for repo %s branch  %s view logs at: %s", buildData.Status,
+		buildData.Source.RepoSource.RepoName,buildData.Source.RepoSource.BranchName,buildData.LogURL)
+	return &DiscordMessage{Content: msg}, nil
 }
 
 func sendToDiscord(data DiscordMessage) error {
