@@ -33,8 +33,8 @@ type DiscordMessage struct {
 }
 
 type BuildMessage struct {
-	Status string `json:"status"`
-	LogURL string `json:"logUrl"`
+	Status string      `json:"status"`
+	LogURL string      `json:"logUrl"`
 	Source BuildSource `json:"source"`
 }
 
@@ -43,8 +43,8 @@ type BuildSource struct {
 }
 
 type RepoSource struct {
-	ProjectID string `json:"projectId"`
-	RepoName string `json:"repoName"`
+	ProjectID  string `json:"projectId"`
+	RepoName   string `json:"repoName"`
 	BranchName string `json:"branchName"`
 }
 
@@ -54,7 +54,7 @@ var filterError = errors.New("filtering out WORKING or QUEUED")
 
 var filterSet = map[string]bool{
 	"WORKING": true,
-	"QUEUED" : true,
+	"QUEUED":  true,
 }
 
 func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
@@ -71,6 +71,7 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 		log.Printf("could not unmarshal json due to: %s\n", unmarshalErr.Error())
 		return
 	}
+	fmt.Printf("%+v\n", pubMessage)
 	discordOutput, generateErr := generateDiscordMessage(pubMessage)
 	if generateErr != nil {
 		if generateErr == filterError {
@@ -107,7 +108,7 @@ func generateDiscordMessage(pubMessage PubSubMessage) (*DiscordMessage, error) {
 		return nil, filterError
 	}
 	msg := fmt.Sprintf("build status is: %s for repo %s branch  %s view logs at: %s", buildData.Status,
-		buildData.Source.RepoSource.RepoName,buildData.Source.RepoSource.BranchName,buildData.LogURL)
+		buildData.Source.RepoSource.RepoName, buildData.Source.RepoSource.BranchName, buildData.LogURL)
 	return &DiscordMessage{Content: msg}, nil
 }
 
@@ -128,5 +129,3 @@ func sendToDiscord(data DiscordMessage) error {
 	}
 	return nil
 }
-
-
