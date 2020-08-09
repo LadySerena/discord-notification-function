@@ -71,7 +71,7 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 		log.Printf("could not unmarshal json due to: %s\n", unmarshalErr.Error())
 		return
 	}
-	fmt.Printf("%+v\n", pubMessage)
+	log.Printf("%+v\n", pubMessage)
 	discordOutput, generateErr := generateDiscordMessage(pubMessage)
 	if generateErr != nil {
 		if generateErr == filterError {
