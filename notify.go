@@ -2,6 +2,7 @@ package discord_notification_function
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	secretmanager "cloud.google.com/go/secretmanager/apiv1"
+	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
+
+	"google.golang.org/genproto/googleapis/devtools/cloudbuild/v1"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type PubSubMessage struct {
@@ -32,29 +38,29 @@ type DiscordMessage struct {
 	Content string `json:"content"`
 }
 
-type BuildMessage struct {
-	Status string      `json:"status"`
-	LogURL string      `json:"logUrl"`
-	Source BuildSource `json:"source"`
-}
+var (
+	filterError = errors.New("filtering out WORKING or QUEUED")
+	filterSet   = map[string]bool{
+		"WORKING": true,
+		"QUEUED":  true,
+	}
+	webhookSecret = os.Getenv("WEBHOOK_SECRET_NAME")
+)
 
-type BuildSource struct {
-	RepoSource RepoSource `json:"repoSource"`
-}
-
-type RepoSource struct {
-	ProjectID  string `json:"projectId"`
-	RepoName   string `json:"repoName"`
-	BranchName string `json:"branchName"`
-}
-
-var discordURL = os.Getenv("DISCORD_URL")
-
-var filterError = errors.New("filtering out WORKING or QUEUED")
-
-var filterSet = map[string]bool{
-	"WORKING": true,
-	"QUEUED":  true,
+func init() {
+	ctx := context.Background()
+	client, err := secretmanager.NewClient(ctx)
+	if err != nil {
+		log.Fatalf("failed to setup client: %v", err)
+	}
+	req := &secretmanagerpb.GetSecretVersionRequest{
+		Name: webhookSecret,
+	}
+	resp, getSecretErr := client.GetSecret(ctx, req)
+	if getSecretErr != nil{
+		log.Fatalf("could not get secret due to: %s", getSecretErr.Error())
+	}
+	resp.get
 }
 
 func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +77,7 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 		log.Printf("could not unmarshal json due to: %s\n", unmarshalErr.Error())
 		return
 	}
-	log.Printf("%+v\n", pubMessage)
+	log.Printf("%+v", pubMessage)
 	discordOutput, generateErr := generateDiscordMessage(pubMessage)
 	if generateErr != nil {
 		if generateErr == filterError {
@@ -88,7 +94,6 @@ func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusAccepted)
-	return
 }
 
 func generateDiscordMessage(pubMessage PubSubMessage) (*DiscordMessage, error) {
@@ -97,18 +102,22 @@ func generateDiscordMessage(pubMessage PubSubMessage) (*DiscordMessage, error) {
 		log.Printf("could not decode string due to: %s\n", decodeErr.Error())
 		return nil, decodeErr
 	}
-	buildData := BuildMessage{}
-	unmarshalErr := json.Unmarshal([]byte(internalMessage), &buildData)
-	if unmarshalErr != nil {
-		log.Printf("could not unmarshal json due to: %s\n", unmarshalErr.Error())
-		return nil, unmarshalErr
+	log.Printf("%s", string(internalMessage))
+	// logic lifted from https://github.com/GoogleCloudPlatform/cloud-build-notifiers/blob/df590d6e6838bacd8c340c0e3ce4b6409c837e5f/lib/notifiers/notifiers.go#L425-L445
+	buildData := new(cloudbuild.Build)
+	uo := protojson.UnmarshalOptions{
+		AllowPartial:   true,
+		DiscardUnknown: true,
 	}
-	//if the status is in our set we return an error to ignore the message
-	if _, filterOut := filterSet[buildData.Status]; filterOut {
+	if err := uo.Unmarshal(internalMessage, buildData); err != nil {
+		log.Printf("could not unmarhsal build due to: %s\n", err.Error())
+	}
+	// if the status is in our set we return an error to ignore the message
+	if _, filterOut := filterSet[buildData.Status.String()]; filterOut {
 		return nil, filterError
 	}
 	msg := fmt.Sprintf("build status is: %s for repo %s branch  %s view logs at: %s", buildData.Status,
-		buildData.Source.RepoSource.RepoName, buildData.Source.RepoSource.BranchName, buildData.LogURL)
+		buildData.Source.GetRepoSource().RepoName, buildData.Source.GetRepoSource().GetBranchName(), buildData.LogUrl)
 	return &DiscordMessage{Content: msg}, nil
 }
 
