@@ -11,9 +11,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+
 	secretmanager "cloud.google.com/go/secretmanager/apiv1"
 	secretmanagerpb "google.golang.org/genproto/googleapis/cloud/secretmanager/v1"
-
 	"google.golang.org/genproto/googleapis/devtools/cloudbuild/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -45,9 +45,12 @@ var (
 		"QUEUED":  true,
 	}
 	webhookSecret = os.Getenv("WEBHOOK_SECRET_NAME")
+	discordURL    = ""
 )
 
 func init() {
+	// TODO sort out iam perms 2021/03/09 04:24:10 could not get secret due to: rpc error: code = PermissionDenied desc = Permission denied on resource project build-notification-url
+	// deploy `gcloud functions deploy discord-notifier --entry-point GetBuildMessage --runtime go113 --trigger-http --set-env-vars=WEBHOOK_SECRET_NAME=build-notification-url`
 	ctx := context.Background()
 	client, err := secretmanager.NewClient(ctx)
 	if err != nil {
@@ -56,11 +59,11 @@ func init() {
 	req := &secretmanagerpb.GetSecretVersionRequest{
 		Name: webhookSecret,
 	}
-	resp, getSecretErr := client.GetSecret(ctx, req)
-	if getSecretErr != nil{
+	resp, getSecretErr := client.GetSecretVersion(ctx, req)
+	if getSecretErr != nil {
 		log.Fatalf("could not get secret due to: %s", getSecretErr.Error())
 	}
-	resp.get
+	discordURL = resp.String()
 }
 
 func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
