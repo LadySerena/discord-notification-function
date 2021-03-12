@@ -45,6 +45,7 @@ var (
 		"QUEUED":  true,
 	}
 	webhookSecret = os.Getenv("WEBHOOK_SECRET_NAME")
+	projectID     = os.Getenv("PROJECT_ID")
 	discordURL    = ""
 )
 
@@ -57,13 +58,14 @@ func init() {
 		log.Fatalf("failed to setup client: %v", err)
 	}
 	req := &secretmanagerpb.GetSecretVersionRequest{
-		Name: webhookSecret,
+		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/latest", projectID, webhookSecret),
 	}
 	resp, getSecretErr := client.GetSecretVersion(ctx, req)
 	if getSecretErr != nil {
 		log.Fatalf("could not get secret due to: %s", getSecretErr.Error())
 	}
 	discordURL = resp.String()
+	fmt.Printf("function successfully initialized")
 }
 
 func GetBuildMessage(w http.ResponseWriter, r *http.Request) {
