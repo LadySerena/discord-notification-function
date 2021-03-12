@@ -57,14 +57,14 @@ func init() {
 	if err != nil {
 		log.Fatalf("failed to setup client: %v", err)
 	}
-	req := &secretmanagerpb.GetSecretVersionRequest{
+	req := &secretmanagerpb.AccessSecretVersionRequest{
 		Name: fmt.Sprintf("projects/%s/secrets/%s/versions/latest", projectID, webhookSecret),
 	}
-	resp, getSecretErr := client.GetSecretVersion(ctx, req)
+	resp, getSecretErr := client.AccessSecretVersion(ctx, req)
 	if getSecretErr != nil {
 		log.Fatalf("could not get secret due to: %s", getSecretErr.Error())
 	}
-	discordURL = resp.String()
+	discordURL = string(resp.Payload.GetData())
 	fmt.Printf("function successfully initialized")
 }
 
@@ -121,8 +121,8 @@ func generateDiscordMessage(pubMessage PubSubMessage) (*DiscordMessage, error) {
 	if _, filterOut := filterSet[buildData.Status.String()]; filterOut {
 		return nil, filterError
 	}
-	msg := fmt.Sprintf("build status is: %s for repo %s branch  %s view logs at: %s", buildData.Status,
-		buildData.Source.GetRepoSource().RepoName, buildData.Source.GetRepoSource().GetBranchName(), buildData.LogUrl)
+	msg := fmt.Sprintf("build status is: %s for repo %s branch %s (tag %s) view logs at: %s", buildData.Status,
+		buildData.Substitutions["REPO_NAME"], buildData.Substitutions["BRANCH_NAME"], buildData.Substitutions["TAG_NAME"], buildData.LogUrl)
 	return &DiscordMessage{Content: msg}, nil
 }
 
